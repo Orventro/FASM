@@ -74,7 +74,13 @@ enum format{
     J  = 100004  // calli 3121
 };
 
+enum flags{
+    EQUAL       = 101001,
+    LESS        = 101002,
+    GREATER     = 101003
+};
+
 extern map<string, int> cmd;
 extern int fmt[100];
 
-void prepare();
+void prepare_codes();

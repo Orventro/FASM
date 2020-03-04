@@ -1,11 +1,9 @@
 #include "codes.h"
 
-using namespace std;
-
-map<string, int> cmd;
+std::map<std::string, int> cmd;
 int fmt[100];
 
-void prepare() {
+void prepare_codes() {
 
     cmd["halt"] = 0;
     cmd["syscall"] = 1;
