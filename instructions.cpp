@@ -15,6 +15,8 @@ void halt(char r1, int op) { // 0 RI
 }
 
 void syscall(char r1, int op) { // 1 RI
+    double ad;
+    uint64_t a;
     switch(op) {
         case HALT:
             exit(op);
@@ -23,13 +25,18 @@ void syscall(char r1, int op) { // 1 RI
             scanf("%d", &reg[r1]);
         break;
         case SCANDOUBLE:
-
+            scanf("%lf", &ad);
+            a = *((uint64_t*)&ad);
+            reg[r1] = a;
+            reg[r1+1] = a>>32;
         break;
         case PRINTINT:
             printf("%d", (int)reg[r1]);
         break;
         case PRINTDOUBLE:
-
+            a = ((uint64_t)reg[r1+1]<<32) + reg[r1];
+            ad = *((double*)&a);
+            printf("%g", ad);
         break;
         case GETCHAR:
         
@@ -59,22 +66,26 @@ void subi(char r1, int op) { // 5 RI
 
 void mul(char r1, char r2, int op) { // 6 RR
     int64_t t = (int64_t)reg[r1] * (int64_t)reg[r2];
-    reg[r1] = t>>32;
-    reg[r1+1] = t;
+    reg[r1+1] = t>>32;
+    reg[r1] = t;
 }
 
 void muli(char r1, int op) { // 7 RI
     int64_t t = (int64_t)reg[r1] * (int64_t)op;
-    reg[r1] = t>>32;
-    reg[r1+1] = t;
+    reg[r1+1] = t>>32;
+    reg[r1] = t;
 }
 
 void div_(char r1, char r2, int op) { // 8 RR
-
+    int64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = reg[r2];
+    reg[r1] = a / b;
+    reg[r1+1] = a % b;
 }
 
 void divi(char r1, int op) { // 9 RI
-    
+    int64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = op;
+    reg[r1] = a / b;
+    reg[r1+1] = a % b;
 }
 
 void lc(char r1, int op) { // 12 RI
@@ -82,19 +93,19 @@ void lc(char r1, int op) { // 12 RI
 }
 
 void shl(char r1, char r2, int op) { // 13 RR
-    reg[r1] >>= reg[r2];
-}
-
-void shli(char r1, int op) { // 14 RI
-    reg[r1] >>= op;
-}
-
-void shr(char r1, char r2, int op) { // 15 RR
     reg[r1] <<= reg[r2];
 }
 
-void shri(char r1, int op) { // 16 RI
+void shli(char r1, int op) { // 14 RI
     reg[r1] <<= op;
+}
+
+void shr(char r1, char r2, int op) { // 15 RR
+    reg[r1] >>= reg[r2];
+}
+
+void shri(char r1, int op) { // 16 RI
+    reg[r1] >>= op;
 }
 
 void and_(char r1, char r2, int op) { // 17 RR
@@ -130,41 +141,67 @@ void mov(char r1, char r2, int op) { // 24 RR
 }
 
 void addd(char r1, char r2, int op) { // 32 RR
-    
+    uint64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = ((uint64_t)reg[r2+1]<<32) + reg[r2];
+    double ad = *((double*)&a), bd = *((double*)&b);
+    ad += bd;
+    a = *((uint64_t*)&ad);
+    reg[r1+1] = a>>32;
+    reg[r1] = a;
 }
 
 void subd(char r1, char r2, int op) { // 33 RR
-    
+    uint64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = ((uint64_t)reg[r2+1]<<32) + reg[r2];
+    double ad = *((double*)&a), bd = *((double*)&b);
+    ad -= bd;
+    a = *((uint64_t*)&ad);
+    reg[r1+1] = a>>32;
+    reg[r1] = a;
 }
 
 void muld(char r1, char r2, int op) { // 34 RR
-    
+    uint64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = ((uint64_t)reg[r2+1]<<32) + reg[r2];
+    double ad = *((double*)&a), bd = *((double*)&b);
+    ad *= bd;
+    a = *((uint64_t*)&ad);
+    reg[r1+1] = a>>32;
+    reg[r1] = a;
 }
 
 void divd(char r1, char r2, int op) { // 35 RR
-    
+    uint64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r1], b = ((uint64_t)reg[r2+1]<<32) + reg[r2];
+    double ad = *((double*)&a), bd = *((double*)&b);
+    ad /= bd;
+    a = *((uint64_t*)&ad);
+    reg[r1+1] = a>>32;
+    reg[r1] = a;
 }
 
 void itod(char r1, char r2, int op) { // 36 RR
-    
+    double ad = (int)reg[r2];
+    uint64_t a = *((uint64_t*)&ad);
+    reg[r1+1] = a>>32;
+    reg[r1] = a;
 }
 
 void dtoi(char r1, char r2, int op) { // 37 RR
-    
+    uint64_t a = ((uint64_t)reg[r1+1]<<32) + reg[r2];
+    double ad = *((double*)&a);
+    reg[r2] = ad;
 }
 
 void push(char r1, int op) { // 38 RI
-    mem[reg[14]--] = reg[r1] + op;
+    mem[--reg[14]] = reg[r1] + op;
 }
 
 void pop(char r1, int op) { // 39 RI
-    reg[r1] = mem[++reg[14]] + op;
+    reg[r1] = mem[reg[14]++] + op;
 }
 
 void call(char r1, char r2, int op) { // 40 RR
-    reg[r1] = reg[15] + 1;
-    push(r1, 0);
+    int a = reg[15] + 1;
     reg[15] = reg[r2] + op - 1;
+    reg[r1] = a;
+    push(r1, 0);
 }
 
 void calli(int op) { // 41 J
@@ -173,8 +210,8 @@ void calli(int op) { // 41 J
 }
 
 void ret(char r1, int op) { // 42 RI
+    pop(15, -1);
     reg[14] += op;
-    reg[15] = mem[++reg[14]]-1;
 }
 
 void cmp(char r1, char r2, int op) { // 43 RR
@@ -190,7 +227,11 @@ void cmpi(char r1, int op) { // 44 RI
 }
 
 void cmpd(char r1, char r2, int op) { // 45 RR
-    
+    uint64_t a = reg[r1+1]<<32ull + reg[r1], b = reg[r2+1]<<32ull + reg[r2];
+    double ad = *((double*)&a), bd = *((double*)&b);
+    if(a == b) flag = EQUAL;
+    if(a < b) flag = LESS;
+    if(a > b) flag = GREATER;
 }
 
 void jmp(int op) { // 46 J

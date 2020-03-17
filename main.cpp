@@ -3,13 +3,15 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <sstream>
+#include <utility>
+#include <algorithm>
 #include "codes.h"
 #include "instructions.h"
 
 using namespace std;
 
-map<string, int> ptr_num;
-vector<int> ptr_addr;
+map<string, int> ptr_addr;
 
 void reg_dump() {
     for(int i = 0; i < 4; i++) {
@@ -20,30 +22,86 @@ void reg_dump() {
 }
 
 void stk_dump(int n) {
-    for(int i = reg[14]; i > reg[14]-n; i--) printf("%d ", mem[i]);
+    for(int i = reg[14]; i < reg[14]+n; i++) printf("%d ", mem[i]);
     printf("\n");
+}
+
+bool sort_str(pair<string, int> &a, pair<string, int> &b) {
+    return a.first.size() > b.first.size();
 }
 
 int main() {
     prepare_codes();
     prepare_instructions();
 
+    // preprocess
+    fstream fin("input.fasm", fstream::in);
+    string input;
+    int lin_num = 0;
+    while(fin.good()) {
+        string line;
+        getline(fin, line);
+        input += line + '\n';
+        istringstream strm(line);
+        bool b = 0;
+        while(strm.good()) {
+            string word;
+            strm >> word;
+            if(word.back() == ':') {
+                word = word.substr(0, word.size()-1);
+                ptr_addr[word] = lin_num - ptr_addr.size();
+                b = 1;
+            } else if(b && word.front() != ';') {
+                lin_num++;
+                b = 0;
+            }
+        }
+        lin_num++;
+    }
+    vector<pair<string, int>> psi;
+    for(auto a : ptr_addr) psi.push_back({a.first, a.second});
+    sort(psi.begin(), psi.end(), sort_str);
+    for(auto a : psi) {
+        while(input.find(a.first) != string::npos) {
+            input.replace(input.find(a.first), a.first.size(), to_string(a.second));
+        }
+    }
+    
     // compile
-    fstream in("input.fasm", fstream::in);
+    istringstream in(input);
     int read_addr = 0;
     while(in.good()) {
         string command;
         in >> command;
-        if(command.back() == ':') {
-            // pointer declaration
-            command = command.substr(0, command.size()-1);
-            if(!ptr_num.count(command)) 
-                ptr_num[command] = ptr_num.size();
-            ptr_addr.push_back(read_addr);
+        char c;
+        if(command.size() == 0) break;
+        if(command.front() == ';') {
+            while(in.peek() != '\n' && in.good()) 
+                in.get(c);
+            in >> c;
+            continue;
+        } else if(command.back() == ':') {
+            continue;
         } else if(command == "end") {
-            string ptr_name;
-            in >> ptr_name;
-            reg[15] = ptr_addr[ptr_num[ptr_name]];
+            in >> reg[15];
+        } else if(command == "ret") {
+            int word = 0;
+            string shift;
+            in >> shift;
+            word = (cmd["ret"] << 24) | stoi(shift);
+            mem[read_addr++] = word;
+        } else if(command == "call") {
+            int ccod = cmd[command];
+            int a1, r1n, r2n;
+            string r1, r2;
+            in >> r1 >> r2;
+            r1 = r1.substr(1, r1.size()-1);
+            r2 = r2.substr(1, r2.size()-1);
+            r1n = stoi(r1);
+            r2n = stoi(r2);
+            mem[read_addr++] = (ccod << 24) | (r1n << 20) | (r2n << 16);
+        } else if(command == "word") {
+            read_addr++;
         } else {
             int ccod = cmd[command]; // cmd code
             int cfmt = fmt[ccod]; // cmd fmt
@@ -72,28 +130,16 @@ int main() {
                     word = (ccod << 24) | (r1n << 20) | a1;
                 break;
                 case J:
-                    string ptr_name;
-                    in >> ptr_name;
-                    if(!ptr_num.count(ptr_name)) 
-                        ptr_num[ptr_name] = ptr_num.size();
-                    word = (ccod << 24) | ptr_num[ptr_name];
+                    in >> a1;
+                    word = (ccod << 24) | a1;
                 break;
             }
             mem[read_addr++] = word;
-            //printf("%s %d %d\n", command.c_str(), ccod, word);
         }
     }
-    for(int i = 0; i < read_addr; i++) {
-        if(fmt[mem[i]>>24] == J) {
-            // printf("jmp altered!\n");
-            // printf("%d -> %d\n", mem[i]&0x000FFFFF, ptr_addr[mem[i]&0x000FFFFF]);
-            mem[i] = (mem[i]&0xFF000000) | ptr_addr[mem[i]&0x000FFFFF];
-        }
-    }
+    
     // run
     do {
-        // stk_dump(1);
-        // printf("flag = %d\n", flag);
         int word = mem[reg[15]];
         char r1, r2;
         int ins, a, m;
@@ -102,9 +148,6 @@ int main() {
         r2 = (word & 0x000F0000) >> 16;
         a  = (word & 0x000FFFFF);
         m  = (word & 0x0000FFFF);
-        // printf("ins = %d\n", ins);
-        // reg_dump();
-        // printf("%d %d\n", r1, r2);
         switch(fmt[ins]) {
             case RR:
                 (( void(*)(char, char, int) )commands[ins]) (r1, r2, m);
@@ -119,8 +162,6 @@ int main() {
                 (( void(*)(int) )commands[ins]) (a);
             break;
         }
-        // reg_dump();
         reg[15]++;
-        //printf("%d %d %d\n", reg[15], word, ins);
     } while(reg[15] != read_addr);
 }
